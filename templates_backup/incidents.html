@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}Incident Management - SOAR Playbook Review{% endblock %}
+{% block page_title %}Security Incident Management & Human-in-the-Loop Review{% endblock %}
+
+{% block content %}
+<!-- UI REDESIGN: Clean white theme for incident registry -->
+<div class="soc-card mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-clipboard-list text-secondary me-2"></i>Security Incident Registry</h6>
+            <span class="text-secondary small">Review detected anomalous network flows and authorize simulated defensive containment.</span>
+        </div>
+        <div class="d-flex gap-2">
+            <select class="form-select form-select-sm w-auto" id="filter-incident-severity">
+                <option value="">All Severities</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+                <option value="Informational">Informational</option>
+            </select>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadIncidents()">
+                <i class="fa-solid fa-rotate-right me-1"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-custom table-hover">
+            <thead>
+                <tr>
+                    <th>Incident ID</th>
+                    <th>Created At</th>
+                    <th>Source IP</th>
+                    <th>Destination IP</th>
+                    <th>Threat Category</th>
+                    <th>Severity</th>
+                    <th>Confidence</th>
+                    <th>Recommended Response</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="incidents-table-body">
+                <tr>
+                    <td colspan="10" class="text-center text-secondary py-4">
+                        <i class="fa-solid fa-spinner fa-spin me-2"></i> Loading incident records...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Analyst Review Modal (White Themed) -->
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background-color: #FFFFFF; border: 1px solid var(--border-color); border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-color); background-color: #F8FAFC;">
+                <h6 class="modal-title fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-user-shield text-primary me-2"></i>Security Analyst Incident Review
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" id="modal-body-content">
+                <div class="text-center py-4 text-secondary"><i class="fa-solid fa-spinner fa-spin me-2"></i> Loading incident details...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentIncidents = [];
+let reviewModalInstance = null;
+const loggedInAnalyst = "{{ current_user.full_name if current_user else 'Security Analyst (Lead)' }}";
+
+async function loadIncidents() {
+    const sev = document.getElementById("filter-incident-severity").value;
+    const url = sev ? `/api/incidents?severity=${sev}&limit=200` : "/api/incidents?limit=200";
+
+    try {
+        const resp = await fetch(url);
+        currentIncidents = await resp.json();
+        renderIncidentsTable(currentIncidents);
+    } catch (err) {
+        console.error("Failed to fetch incidents:", err);
+    }
+}
+
+function renderIncidentsTable(incidents) {
+    const tbody = document.getElementById("incidents-table-body");
+    if (!incidents.length) {
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center text-secondary py-4">No security incidents found in the database. Run flow analysis from the <a href="/detection" class="text-primary text-decoration-none">Traffic Analysis</a> page.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = incidents.map(inc => {
+        const sevClass = `badge-${inc.severity.toLowerCase()}`;
+        const confPct = (inc.confidence * 100).toFixed(1);
+        let statusBadge = '<span class="badge bg-light text-secondary border">Unknown</span>';
+
+        if (inc.action_status === "PENDING_APPROVAL") {
+            statusBadge = '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-hourglass-half me-1"></i>Pending</span>';
+        } else if (inc.action_status === "SIMULATED_EXECUTED") {
+            statusBadge = '<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fa-solid fa-check me-1"></i>Simulated</span>';
+        } else if (inc.action_status === "ANALYST_REJECTED") {
+            statusBadge = '<span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="fa-solid fa-xmark me-1"></i>Rejected</span>';
+        }
+
+        return `
+            <tr id="row-${inc.incident_id}">
+                <td class="code-font fw-semibold text-primary">${inc.incident_id}</td>
+                <td class="text-secondary small">${new Date(inc.created_at).toLocaleString()}</td>
+                <td class="code-font">${inc.source_ip}</td>
+                <td class="code-font">${inc.destination_ip}</td>
+                <td><strong class="${inc.threat_category === 'Benign' ? 'text-success' : 'text-danger'}">${inc.threat_category}</strong></td>
+                <td><span class="badge ${sevClass}">${inc.severity}</span></td>
+                <td class="code-font small text-dark">${confPct}%</td>
+                <td class="code-font small text-secondary">${inc.recommended_action}</td>
+                <td>${statusBadge}</td>
+                <td>
+                    <button class="btn btn-xs btn-outline-secondary py-0 px-2" onclick="openReviewModal('${inc.incident_id}')">
+                        Review
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join("");
+}
+
+async function openReviewModal(incidentId) {
+    if (!reviewModalInstance) {
+        reviewModalInstance = new bootstrap.Modal(document.getElementById("reviewModal"));
+    }
+    reviewModalInstance.show();
+
+    const body = document.getElementById("modal-body-content");
+    body.innerHTML = `<div class="text-center py-4 text-secondary"><i class="fa-solid fa-spinner fa-spin me-2"></i> Loading incident ${incidentId}...</div>`;
+
+    try {
+        const resp = await fetch(`/api/incidents/${incidentId}`);
+        const inc = await resp.json();
+
+        body.innerHTML = `
+            <div class="simulation-banner w-100 mb-3 justify-content-center">
+                <i class="fa-solid fa-shield-halved text-success"></i>
+                <span>SAFEGUARD: Actions are executed in <strong>SIMULATION ONLY</strong> mode. Zero host firewall exposure.</span>
+            </div>
+
+            <div class="row g-3 mb-3 text-dark">
+                <div class="col-sm-6">
+                    <div class="p-2 rounded bg-light border border-light-subtle">
+                        <div class="text-secondary small" style="font-size: 0.75rem;">Incident Identifier</div>
+                        <div class="code-font fw-bold text-primary">${inc.incident_id}</div>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="p-2 rounded bg-light border border-light-subtle">
+                        <div class="text-secondary small" style="font-size: 0.75rem;">Detection Timestamp</div>
+                        <div class="small fw-medium">${new Date(inc.created_at).toUTCString()}</div>
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="p-2 rounded bg-light border border-light-subtle">
+                        <div class="text-secondary small" style="font-size: 0.75rem;">Threat Category</div>
+                        <div class="fw-bold text-danger">${inc.threat_category}</div>
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="p-2 rounded bg-light border border-light-subtle">
+                        <div class="text-secondary small" style="font-size: 0.75rem;">Assigned Severity</div>
+                        <span class="badge badge-${inc.severity.toLowerCase()}">${inc.severity}</span>
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="p-2 rounded bg-light border border-light-subtle">
+                        <div class="text-secondary small" style="font-size: 0.75rem;">Model Confidence</div>
+                        <div class="code-font fw-bold text-primary">${(inc.confidence * 100).toFixed(2)}%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-3 rounded mb-3" style="background-color: #F8FAFC; border: 1px solid var(--border-color); border-left: 3px solid var(--accent-brand);">
+                <div class="fw-semibold text-dark mb-1">Recommended Defensive Action</div>
+                <div class="code-font fw-bold text-primary mb-1">${inc.recommended_action}</div>
+                <div class="text-secondary small">Target: <code>${inc.source_ip}</code> &rarr; <code>${inc.destination_ip}</code> (${inc.protocol.toUpperCase()}/${inc.service})</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary">Analyst Name / ID</label>
+                <input type="text" class="form-control form-control-sm" id="modal-analyst-name" value="${loggedInAnalyst}">
+            </div>
+            <div class="mb-4">
+                <label class="form-label small fw-semibold text-secondary">Analyst Assessment & Notes</label>
+                <textarea class="form-control form-control-sm" id="modal-analyst-comments" rows="2" placeholder="Document verification reasoning, flow correlation, or rationale...">${inc.analyst_notes || "Verified anomalous signature. Proposing simulated containment."}</textarea>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="submitReview('${inc.incident_id}', 'REJECTED')">
+                    <i class="fa-solid fa-xmark me-1"></i> Reject Containment
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="submitReview('${inc.incident_id}', 'APPROVED')">
+                    <i class="fa-solid fa-shield-check me-1"></i> Authorize Containment
+                </button>
+            </div>
+        `;
+    } catch (err) {
+        body.innerHTML = `<div class="alert alert-danger small mb-0">Failed to load incident details: ${err}</div>`;
+    }
+}
+
+async function submitReview(incidentId, decision) {
+    const analystName = document.getElementById("modal-analyst-name").value;
+    const comments = document.getElementById("modal-analyst-comments").value;
+
+    try {
+        const resp = await fetch(`/api/incidents/${incidentId}/review`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ decision, analyst_name: analystName, comments })
+        });
+        const res = await resp.json();
+
+        if (res.error) {
+            alert("Review submission error: " + res.error);
+            return;
+        }
+
+        alert(`Incident ${incidentId}: ${decision} successfully in SIMULATION mode!`);
+        reviewModalInstance.hide();
+        loadIncidents();
+    } catch (err) {
+        alert("Failed to submit review: " + err);
+    }
+}
+
+document.getElementById("filter-incident-severity").addEventListener("change", loadIncidents);
+document.addEventListener("DOMContentLoaded", loadIncidents);
+</script>
+{% endblock %}

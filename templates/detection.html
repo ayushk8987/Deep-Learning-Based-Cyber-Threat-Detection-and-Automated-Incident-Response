@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+
+{% block title %}Traffic Ingestion & Detection - CyberSOC IDS{% endblock %}
+{% block page_title %}Network Traffic Ingestion & Batch Threat Detection{% endblock %}
+{% block breadcrumb %}Traffic Ingestion{% endblock %}
+
+{% block content %}
+<!-- Interactive 1-Click Simulation Toolbar -->
+<div class="soc-card mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h6 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
+                <i class="fa-solid fa-bolt-lightning text-warning"></i>
+                <span>Instant Threat Simulation Station</span>
+                <span class="badge bg-light text-secondary border small">Live DL Evaluation</span>
+            </h6>
+            <div class="text-secondary small">
+                Evaluate model inference in real-time. Click any attack vector preset to generate verified flows and execute the CNN-LSTM classification pipeline.
+            </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="runPresetDetection('dos', 10)">
+                <i class="fa-solid fa-burst me-1"></i> Simulate DoS (SYN Flood)
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="runPresetDetection('probe', 10)">
+                <i class="fa-solid fa-satellite-dish me-1"></i> Simulate Probe (Port Sweep)
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-warning text-dark" onclick="runPresetDetection('r2l', 10)">
+                <i class="fa-solid fa-key me-1"></i> Simulate R2L (Brute Force)
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="runPresetDetection('benign', 10)">
+                <i class="fa-solid fa-shield-heart me-1"></i> Simulate Benign Traffic
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Upload and Schema Validation -->
+<div class="row g-4 mb-4">
+    <!-- Manual File Upload Box -->
+    <div class="col-lg-5">
+        <div class="soc-card h-100">
+            <h6 class="fw-bold mb-2 text-dark"><i class="fa-solid fa-file-arrow-up text-primary me-2"></i>Upload Capture Telemetry (CSV)</h6>
+            <p class="text-secondary small mb-3">
+                Upload raw or preprocessed network capture records (NSL-KDD or CICIDS2017 schema). The engine extracts flow features, normalizes scales, and scores probabilities.
+            </p>
+
+            <form id="upload-form" class="mb-3">
+                <div class="mb-3">
+                    <label for="dataset-file" class="form-label small fw-semibold text-secondary">Flow CSV / TXT Capture</label>
+                    <input class="form-control form-control-sm" type="file" id="dataset-file" accept=".csv,.txt" required>
+                </div>
+                <div class="mb-3">
+                    <label for="batch-limit" class="form-label small fw-semibold text-secondary">Inference Batch Cap</label>
+                    <select class="form-select form-select-sm" id="batch-limit">
+                        <option value="50">50 Flows (Rapid Check)</option>
+                        <option value="150" selected>150 Flows (Standard Evaluation)</option>
+                        <option value="500">500 Flows (Deep Inspection)</option>
+                    </select>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-validate">
+                        <i class="fa-solid fa-clipboard-check me-1"></i> Validate Schema
+                    </button>
+                    <button type="submit" class="btn btn-sm btn-dark" id="btn-detect">
+                        <i class="fa-solid fa-play me-1"></i> Run DL Detection
+                    </button>
+                </div>
+            </form>
+
+            <hr style="border-color: var(--border-subtle);">
+
+            <!-- Quick Benchmark Generator -->
+            <div class="p-3 rounded bg-light border">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="small fw-semibold text-dark"><i class="fa-solid fa-database text-primary me-1"></i>Pre-Packaged Dataset</span>
+                    <button type="button" class="btn btn-xs btn-outline-secondary" id="btn-gen-demo">Generate Sample</button>
+                </div>
+                <div class="text-secondary small" style="font-size: 0.78rem;">
+                    Creates or refreshes verified test sample in <code class="code-font text-dark">data/samples/synthetic_demo_flows.csv</code>.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schema Validation & Dataset Health -->
+    <div class="col-lg-7">
+        <div class="soc-card h-100" id="validation-panel">
+            <h6 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-microchip text-secondary me-2"></i>Dataset Health & Schema Audit</h6>
+            <div id="validation-content" class="text-secondary small">
+                <p>No external dataset selected. Use the <strong>Instant Threat Simulation</strong> presets above, or upload a CSV file and click <strong>Validate Schema</strong>.</p>
+                
+                <div class="p-3 rounded bg-light border">
+                    <div class="fw-semibold text-dark mb-2">Pre-Ingestion Standard Requirements:</div>
+                    <ul class="mb-0 ps-3 text-secondary" style="font-size: 0.8rem; line-height: 1.6;">
+                        <li><strong>Feature Vectors:</strong> 41 standardized attributes including duration, protocol type, service, flag, src/dst bytes, error rates.</li>
+                        <li><strong>Zero Data Leakage:</strong> Identifiers, IP metadata, and labels are stripped prior to feature tensor construction.</li>
+                        <li><strong>Harmonized Multiclass Target:</strong> Mapped to 5 canonical categories: <code class="text-success">Benign</code>, <code class="text-danger">DoS</code>, <code class="text-primary">Probe</code>, <code class="text-warning-emphasis">R2L</code>, <code class="text-purple">U2R</code>.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detection Results Table -->
+<div class="soc-card" id="results-panel" style="display: none;">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-list-check text-success me-2"></i>Inference Results & Threat Classifications</h6>
+            <span class="text-secondary small" id="results-summary-text">Showing predictions</span>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <input type="text" id="filter-text" class="form-control form-control-sm w-auto" placeholder="Search IP or Action..." oninput="renderResultsTable(globalPredictionResults)">
+            <select class="form-select form-select-sm w-auto" id="filter-threat">
+                <option value="">All Categories</option>
+                <option value="Benign">Benign Only</option>
+                <option value="DoS">DoS</option>
+                <option value="Probe">Probe</option>
+                <option value="R2L">R2L</option>
+                <option value="U2R">U2R</option>
+            </select>
+            <select class="form-select form-select-sm w-auto" id="filter-severity">
+                <option value="">All Severities</option>
+                <option value="Informational">Informational</option>
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-custom table-hover">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Source IP</th>
+                    <th>Destination IP</th>
+                    <th>Proto / Srv</th>
+                    <th>Predicted Category</th>
+                    <th>Confidence</th>
+                    <th>Assigned Severity</th>
+                    <th>Recommended Response</th>
+                    <th>SOAR Status</th>
+                </tr>
+            </thead>
+            <tbody id="results-table-body"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let globalPredictionResults = [];
+
+// 1-Click Preset Threat Ingestion
+async function runPresetDetection(category, count = 10) {
+    const resultsPanel = document.getElementById("results-panel");
+    const summaryText = document.getElementById("results-summary-text");
+    const tbody = document.getElementById("results-table-body");
+
+    resultsPanel.style.display = "block";
+    summaryText.innerText = `Simulating and evaluating ${category.toUpperCase()} flows...`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-secondary py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i> Running Deep Learning Inference on ${category.toUpperCase()} flows...</td></tr>`;
+    resultsPanel.scrollIntoView({ behavior: "smooth" });
+
+    try {
+        const resp = await fetch("/api/detection/simulate-preset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ category: category, count: count })
+        });
+        const data = await resp.json();
+
+        if (!resp.ok || data.status !== "success") {
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">Simulation failed: ${data.error || "Unknown error"}</td></tr>`;
+            return;
+        }
+
+        globalPredictionResults = data.results;
+        summaryText.innerText = `Processed ${data.processed_count} ${category.toUpperCase()} records. Telemetry staged into SQLite database.`;
+        renderResultsTable(globalPredictionResults);
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">Request failed: ${err}</td></tr>`;
+    }
+}
+
+// Generate Demo Dataset
+document.getElementById("btn-gen-demo").addEventListener("click", async () => {
+    try {
+        const resp = await fetch("/api/generate-demo-data", { method: "POST" });
+        const res = await resp.json();
+        alert(`Verification dataset created successfully at:\n${res.file_path}\n(Contains 200 NSL-KDD compliant flow records)`);
+    } catch (err) {
+        alert("Failed to generate demo dataset: " + err);
+    }
+});
+
+// Validate Schema
+document.getElementById("btn-validate").addEventListener("click", async () => {
+    const fileInput = document.getElementById("dataset-file");
+    if (!fileInput.files.length) {
+        alert("Please select a CSV file first!");
+        return;
+    }
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+
+    const valBox = document.getElementById("validation-content");
+    valBox.innerHTML = `<div class="text-secondary"><i class="fa-solid fa-spinner fa-spin me-2"></i> Inspecting dataset structure and scanning for leakage...</div>`;
+
+    try {
+        const resp = await fetch("/api/dataset/validate", { method: "POST", body: formData });
+        const data = await resp.json();
+
+        if (data.error) {
+            valBox.innerHTML = `<div class="alert alert-danger py-2 small mb-0">${data.error}</div>`;
+            return;
+        }
+
+        valBox.innerHTML = `
+            <div class="alert alert-success py-2 mb-3 small">
+                <i class="fa-solid fa-circle-check me-2"></i> Schema Validation Passed: Compatible Network Flow Representation.
+            </div>
+            <div class="row g-2 mb-2 text-dark">
+                <div class="col-sm-4"><strong>Total Rows:</strong> ${data.total_rows.toLocaleString()}</div>
+                <div class="col-sm-4"><strong>Total Features:</strong> ${data.total_columns}</div>
+                <div class="col-sm-4"><strong>Target Column:</strong> <code class="text-primary">${data.target_column || "Unlabeled (Test Mode)"}</code></div>
+                <div class="col-sm-4"><strong>Missing Values:</strong> ${data.total_missing_values}</div>
+                <div class="col-sm-4"><strong>Infinite Values:</strong> ${data.total_infinite_values}</div>
+                <div class="col-sm-4"><strong>Duplicates:</strong> ${data.duplicate_rows}</div>
+            </div>
+            ${data.identified_leakage_columns.length ? 
+                `<div class="text-warning-emphasis small mb-2"><i class="fa-solid fa-shield-virus me-1"></i> Isolated Potential Leakage Columns: <code>${data.identified_leakage_columns.join(", ")}</code> (safely removed before inference)</div>` : ''}
+        `;
+    } catch (err) {
+        valBox.innerHTML = `<div class="alert alert-danger py-2 small mb-0">Validation request failed: ${err}</div>`;
+    }
+});
+
+// Run Threat Detection on Uploaded CSV
+document.getElementById("upload-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fileInput = document.getElementById("dataset-file");
+    if (!fileInput.files.length) return;
+
+    const limit = document.getElementById("batch-limit").value;
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    formData.append("limit", limit);
+
+    const btnDetect = document.getElementById("btn-detect");
+    btnDetect.disabled = true;
+    btnDetect.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-1"></i> Running DL Inference...`;
+
+    try {
+        const resp = await fetch("/api/detection/predict", { method: "POST", body: formData });
+        const data = await resp.json();
+
+        if (data.error) {
+            alert("Detection Error: " + data.error);
+            return;
+        }
+
+        globalPredictionResults = data.results;
+        document.getElementById("results-panel").style.display = "block";
+        document.getElementById("results-summary-text").innerText = `Processed ${data.processed_count} flow records. All threats staged into SQLite database.`;
+        renderResultsTable(globalPredictionResults);
+        document.getElementById("results-panel").scrollIntoView({ behavior: "smooth" });
+    } catch (err) {
+        alert("Inference request failed: " + err);
+    } finally {
+        btnDetect.disabled = false;
+        btnDetect.innerHTML = `<i class="fa-solid fa-play me-1"></i> Run DL Detection`;
+    }
+});
+
+function renderResultsTable(records) {
+    const threatFilter = document.getElementById("filter-threat").value;
+    const sevFilter = document.getElementById("filter-severity").value;
+    const textFilter = (document.getElementById("filter-text") ? document.getElementById("filter-text").value : "").toLowerCase().trim();
+
+    const filtered = records.filter(r => {
+        if (threatFilter && r.threat_category !== threatFilter) return false;
+        if (sevFilter && r.severity !== sevFilter) return false;
+        if (textFilter && !(
+            r.source_ip.toLowerCase().includes(textFilter) ||
+            r.destination_ip.toLowerCase().includes(textFilter) ||
+            r.recommended_action.toLowerCase().includes(textFilter) ||
+            r.threat_category.toLowerCase().includes(textFilter)
+        )) return false;
+        return true;
+    });
+
+    const tbody = document.getElementById("results-table-body");
+    if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-secondary py-3">No matching records for chosen filters.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(r => {
+        const sevClass = `badge-${r.severity.toLowerCase()}`;
+        const confPct = (r.confidence * 100).toFixed(1);
+        const statusBadge = r.action_status === "PENDING_APPROVAL" ?
+            '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-hourglass-half me-1"></i>Pending</span>' :
+            '<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fa-solid fa-check me-1"></i>Simulated</span>';
+
+        return `
+            <tr>
+                <td class="code-font text-secondary">${r.record_index + 1}</td>
+                <td class="code-font">${r.source_ip}</td>
+                <td class="code-font">${r.destination_ip}</td>
+                <td><span class="badge bg-light text-dark border">${r.protocol}/${r.service}</span></td>
+                <td><strong class="${r.threat_category === 'Benign' ? 'text-success' : 'text-danger'}">${r.threat_category}</strong></td>
+                <td>
+                    <span class="code-font small fw-semibold text-dark">${confPct}%</span>
+                    <div class="progress" style="height: 4px; width: 55px; background-color: #E2E8F0;">
+                        <div class="progress-bar bg-primary" style="width: ${confPct}%"></div>
+                    </div>
+                </td>
+                <td><span class="badge ${sevClass}">${r.severity}</span></td>
+                <td class="code-font small text-secondary">${r.recommended_action}</td>
+                <td>${statusBadge}</td>
+            </tr>
+        `;
+    }).join("");
+}
+
+document.getElementById("filter-threat").addEventListener("change", () => renderResultsTable(globalPredictionResults));
+document.getElementById("filter-severity").addEventListener("change", () => renderResultsTable(globalPredictionResults));
+</script>
+{% endblock %}

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cyber-soc
+  labels:
+    app.kubernetes.io/name: cyber-soc
+    app.kubernetes.io/part-of: cyber-threat-detection-soar
+    environment: production

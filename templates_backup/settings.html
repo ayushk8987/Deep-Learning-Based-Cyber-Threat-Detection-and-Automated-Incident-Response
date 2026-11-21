@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Settings & Diagnostics - Academic SOC Prototype{% endblock %}
+{% block page_title %}System Settings, Diagnostics & Environment Verification{% endblock %}
+
+{% block content %}
+<!-- UI REDESIGN: White-themed settings & environment diagnostics -->
+<div class="row g-4">
+    <!-- Environment and Paths Diagnostics -->
+    <div class="col-lg-6">
+        <div class="soc-card h-100">
+            <h6 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-server text-secondary me-2"></i>Runtime Environment & Framework Status</h6>
+            <table class="table table-sm table-custom small">
+                <tbody>
+                    <tr>
+                        <td class="text-secondary">Project Title:</td>
+                        <td class="fw-semibold text-dark">Deep Learning-Based Cyber Threat Detection & SOAR</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Application Version:</td>
+                        <td class="code-font text-primary">1.0.0 (B.Tech Major Project Phase-I & II)</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Machine Learning Framework:</td>
+                        <td class="code-font text-dark">TensorFlow 2.21.0 / Keras 3.15</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Preprocessing & Baselines:</td>
+                        <td class="code-font text-dark">Scikit-Learn 1.9.1 / Pandas 3.1.0</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Persistence Database:</td>
+                        <td class="code-font text-dark">SQLite3 (data/cyber_soc.db)</td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Active Execution Mode:</td>
+                        <td><span class="badge bg-success-subtle text-success border border-success-subtle">SIMULATION ONLY (Safeguarded)</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Storage and Artifact Paths -->
+    <div class="col-lg-6">
+        <div class="soc-card h-100">
+            <h6 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-folder-tree text-secondary me-2"></i>Workspace Storage Architecture</h6>
+            <ul class="list-group list-group-flush small bg-transparent">
+                <li class="list-group-item bg-transparent text-secondary px-0 py-2 border-bottom">
+                    <strong class="text-dark">Raw Datasets:</strong> <code class="code-font text-primary">data/raw/</code>
+                </li>
+                <li class="list-group-item bg-transparent text-secondary px-0 py-2 border-bottom">
+                    <strong class="text-dark">Trained Model Artifacts:</strong> <code class="code-font text-primary">models/saved_model/</code>
+                </li>
+                <li class="list-group-item bg-transparent text-secondary px-0 py-2 border-bottom">
+                    <strong class="text-dark">Evaluation & Plots:</strong> <code class="code-font text-primary">artifacts/evaluation/</code>, <code class="code-font text-primary">artifacts/plots/</code>
+                </li>
+                <li class="list-group-item bg-transparent text-secondary px-0 py-2 border-bottom">
+                    <strong class="text-dark">Academic Documentation:</strong> <code class="code-font text-primary">docs/</code>
+                </li>
+            </ul>
+            <div class="mt-4">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-gen-demo-settings">
+                    <i class="fa-solid fa-flask-vial me-1"></i> Generate Verified Demo Sample
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("btn-gen-demo-settings").addEventListener("click", async () => {
+    try {
+        const resp = await fetch("/api/generate-demo-data", { method: "POST" });
+        const res = await resp.json();
+        alert(`Verification dataset created at:\n${res.file_path}\nReady for testing in Traffic Analysis!`);
+    } catch (err) {
+        alert("Failed to generate demo dataset: " + err);
+    }
+});
+</script>
+{% endblock %}

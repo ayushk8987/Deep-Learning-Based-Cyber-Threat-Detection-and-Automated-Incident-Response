@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Cyber Threat Detection & SOAR Dashboard{% endblock %}</title>
+    <!-- UI REDESIGN: Clean, modern typography and styling -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* UI REDESIGN: Refined, human-centric white theme palette */
+        :root {
+            --bg-primary: #FFFFFF;
+            --bg-secondary: #F8FAFC;
+            --bg-card: #FFFFFF;
+            --border-color: #E2E8F0;
+            --border-subtle: #F1F5F9;
+            --text-primary: #1E293B;
+            --text-secondary: #64748B;
+            --text-muted: #94A3B8;
+            --accent-brand: #2563EB;
+            --accent-dark: #0F172A;
+            --accent-surface: #F1F5F9;
+
+            --status-info-bg: #F1F5F9;
+            --status-info-text: #475569;
+            --status-info-border: #CBD5E1;
+
+            --status-low-bg: #EFF6FF;
+            --status-low-text: #2563EB;
+            --status-low-border: #BFDBFE;
+
+            --status-med-bg: #FFFBEB;
+            --status-med-text: #D97706;
+            --status-med-border: #FDE68A;
+
+            --status-high-bg: #FEF2F2;
+            --status-high-text: #DC2626;
+            --status-high-border: #FECACA;
+
+            --status-crit-bg: #FAF5FF;
+            --status-crit-text: #7E22CE;
+            --status-crit-border: #E9D5FF;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+        }
+
+        /* Sidebar Styling */
+        .sidebar {
+            background-color: var(--bg-primary);
+            border-right: 1px solid var(--border-color);
+            min-height: 100vh;
+            width: 256px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar .brand {
+            padding: 20px 24px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--bg-primary);
+        }
+
+        .sidebar .nav {
+            flex-grow: 1;
+            padding: 16px 12px;
+        }
+
+        .sidebar .nav-link {
+            color: var(--text-secondary);
+            padding: 10px 14px;
+            font-size: 0.88rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            transition: all 0.15s ease-in-out;
+            text-decoration: none;
+        }
+
+        .sidebar .nav-link:hover {
+            color: var(--text-primary);
+            background-color: var(--bg-secondary);
+        }
+
+        .sidebar .nav-link.active {
+            color: var(--accent-brand);
+            background-color: #EFF6FF;
+            font-weight: 600;
+        }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--bg-primary);
+        }
+
+        /* Main Workspace */
+        .main-content {
+            margin-left: 256px;
+            padding: 32px;
+            min-height: 100vh;
+        }
+
+        /* Header Bar */
+        .top-navbar {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 14px 24px;
+            margin-bottom: 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+        }
+
+        /* Redesigned Cards */
+        .soc-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+
+        .soc-card:hover {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border-color: #CBD5E1;
+        }
+
+        /* Status Badges */
+        .badge-informational {
+            background-color: var(--status-info-bg);
+            color: var(--status-info-text);
+            border: 1px solid var(--status-info-border);
+            font-weight: 500;
+        }
+        .badge-low {
+            background-color: var(--status-low-bg);
+            color: var(--status-low-text);
+            border: 1px solid var(--status-low-border);
+            font-weight: 500;
+        }
+        .badge-medium {
+            background-color: var(--status-med-bg);
+            color: var(--status-med-text);
+            border: 1px solid var(--status-med-border);
+            font-weight: 500;
+        }
+        .badge-high {
+            background-color: var(--status-high-bg);
+            color: var(--status-high-text);
+            border: 1px solid var(--status-high-border);
+            font-weight: 500;
+        }
+        .badge-critical {
+            background-color: var(--status-crit-bg);
+            color: var(--status-crit-text);
+            border: 1px solid var(--status-crit-border);
+            font-weight: 500;
+        }
+
+        .simulation-banner {
+            background-color: #F8FAFC;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 7px 14px;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Clean Modern Tables */
+        .table-custom {
+            --bs-table-bg: transparent;
+            --bs-table-border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .table-custom th {
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 14px;
+            background-color: #F8FAFC;
+        }
+
+        .table-custom td {
+            vertical-align: middle;
+            font-size: 0.875rem;
+            padding: 12px 14px;
+            border-bottom: 1px solid #F1F5F9;
+        }
+
+        .table-custom tbody tr:hover {
+            background-color: #F8FAFC;
+        }
+
+        /* Button Refinements */
+        .btn-primary {
+            background-color: var(--accent-dark);
+            border-color: var(--accent-dark);
+            color: #FFFFFF;
+            font-weight: 500;
+        }
+        .btn-primary:hover {
+            background-color: #1E293B;
+            border-color: #1E293B;
+        }
+        .btn-outline-primary {
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+        .btn-outline-primary:hover {
+            background-color: var(--bg-secondary);
+            border-color: #CBD5E1;
+            color: var(--text-primary);
+        }
+
+        .form-control, .form-select {
+            border-color: var(--border-color);
+            background-color: #FFFFFF;
+            color: var(--text-primary);
+            border-radius: 8px;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--accent-brand);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+        <div class="brand d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fa-solid fa-shield-halved text-primary"></i>
+                <span>CyberSOC IDS</span>
+            </div>
+            <span class="badge bg-light text-secondary border small">v1.0</span>
+        </div>
+        <div class="nav flex-column">
+            <a href="/" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">
+                <i class="fa-solid fa-chart-line"></i> Overview SOC
+            </a>
+            <a href="/detection" class="nav-link {% if active_page == 'detection' %}active{% endif %}">
+                <i class="fa-solid fa-network-wired"></i> Traffic Analysis
+            </a>
+            <a href="/incidents" class="nav-link {% if active_page == 'incidents' %}active{% endif %}">
+                <i class="fa-solid fa-triangle-exclamation"></i> Incidents & Reviews
+            </a>
+            <a href="/model-metrics" class="nav-link {% if active_page == 'model_metrics' %}active{% endif %}">
+                <i class="fa-solid fa-brain"></i> Model Performance
+            </a>
+            <a href="/response-center" class="nav-link {% if active_page == 'response_center' %}active{% endif %}">
+                <i class="fa-solid fa-robot"></i> SOAR Response Center
+            </a>
+            <a href="/settings" class="nav-link {% if active_page == 'settings' %}active{% endif %}">
+                <i class="fa-solid fa-gear"></i> Settings & Diagnostics
+            </a>
+        </div>
+
+        <!-- Sidebar User / Safeguard Info -->
+        <div class="sidebar-footer">
+            {% if current_user %}
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <div class="d-flex align-items-center gap-2 overflow-hidden">
+                    <div class="rounded-circle bg-light border d-flex align-items-center justify-content-center text-primary fw-bold" style="width: 32px; height: 32px; min-width: 32px; font-size: 0.8rem;">
+                        {{ current_user.full_name[0] }}
+                    </div>
+                    <div class="text-truncate">
+                        <div class="small fw-semibold text-truncate" style="font-size: 0.8rem;">{{ current_user.full_name }}</div>
+                        <div class="text-secondary small text-truncate" style="font-size: 0.72rem;">{{ current_user.role }}</div>
+                    </div>
+                </div>
+                <a href="/logout" class="text-secondary text-decoration-none small" title="Sign Out">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </a>
+            </div>
+            {% else %}
+            <div class="mb-2">
+                <a href="/login" class="btn btn-sm btn-outline-primary w-100 py-1" style="font-size: 0.8rem;">
+                    <i class="fa-solid fa-lock me-1"></i> Analyst Sign In
+                </a>
+            </div>
+            {% endif %}
+            <div class="text-secondary small" style="font-size: 0.72rem;">
+                <div class="d-flex align-items-center gap-1">
+                    <i class="fa-solid fa-circle text-success" style="font-size: 0.55rem;"></i>
+                    <span>Mode: <strong>Simulation Only</strong></span>
+                </div>
+                <div class="text-muted mt-0.5">Host defenses isolated</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Workspace Content -->
+    <div class="main-content">
+        <!-- Top Navbar -->
+        <div class="top-navbar">
+            <div>
+                <h5 class="mb-0 fw-bold text-dark">{% block page_title %}Dashboard{% endblock %}</h5>
+                <span class="text-secondary small">Deep Learning-Based Cyber Threat Detection & Automated Incident Response</span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="simulation-banner">
+                    <i class="fa-solid fa-shield-check text-success"></i>
+                    <span>Safeguard Active: <strong>SIMULATION ONLY</strong></span>
+                </div>
+                <a href="/api/export/incidents" class="btn btn-sm btn-outline-secondary">
+                    <i class="fa-solid fa-download me-1"></i> Export Incident CSV
+                </a>
+                {% if not current_user %}
+                <a href="/login" class="btn btn-sm btn-primary">
+                    <i class="fa-solid fa-user me-1"></i> Sign In
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Injected View Content -->
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

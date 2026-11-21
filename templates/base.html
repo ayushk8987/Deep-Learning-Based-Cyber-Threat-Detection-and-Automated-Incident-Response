@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CyberSOC - Threat Detection & Automated Response{% endblock %}</title>
+    <!-- Professional Typography & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-page: #F8FAFC;
+            --bg-surface: #FFFFFF;
+            --border-subtle: #E2E8F0;
+            --border-hover: #CBD5E1;
+            --text-heading: #0F172A;
+            --text-body: #334155;
+            --text-muted: #64748B;
+            --accent-brand: #2563EB;
+            --accent-brand-subtle: #EFF6FF;
+            --sidebar-width: 260px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-body);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+        }
+
+        /* Sidebar: Professional Grouped Hierarchy */
+        .sidebar {
+            background-color: var(--bg-surface);
+            border-right: 1px solid var(--border-subtle);
+            min-height: 100vh;
+            width: var(--sidebar-width);
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-brand {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .brand-logo {
+            font-size: 0.98rem;
+            font-weight: 700;
+            color: var(--text-heading);
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-icon {
+            width: 32px;
+            height: 32px;
+            background-color: #0F172A;
+            color: #FFFFFF;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+        }
+
+        .sidebar-menu {
+            flex-grow: 1;
+            padding: 16px 12px;
+            overflow-y: auto;
+        }
+
+        .nav-section-title {
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            padding: 12px 10px 6px;
+        }
+
+        .sidebar-link {
+            color: var(--text-muted);
+            padding: 8px 12px;
+            font-size: 0.86rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: all 0.12s ease;
+            margin-bottom: 2px;
+        }
+
+        .sidebar-link:hover {
+            color: var(--text-heading);
+            background-color: #F1F5F9;
+        }
+
+        .sidebar-link.active {
+            color: var(--accent-brand);
+            background-color: var(--accent-brand-subtle);
+            font-weight: 600;
+        }
+
+        .sidebar-link i {
+            width: 18px;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            padding: 14px 16px;
+            border-top: 1px solid var(--border-subtle);
+            background-color: var(--bg-surface);
+        }
+
+        /* Main View Container */
+        .app-main {
+            margin-left: var(--sidebar-width);
+            padding: 24px 32px 48px;
+            min-height: 100vh;
+        }
+
+        /* Top Bar */
+        .app-topbar {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 12px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+        }
+
+        .breadcrumb-nav {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 2px;
+        }
+
+        .topbar-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-heading);
+            margin: 0;
+            letter-spacing: -0.01em;
+        }
+
+        .pill-badge {
+            font-size: 0.78rem;
+            font-weight: 500;
+            padding: 5px 12px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pill-simulation {
+            background-color: #F1F5F9;
+            color: #334155;
+            border: 1px solid #CBD5E1;
+        }
+
+        /* Cards & Surface Elements */
+        .card-surface {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 20px 22px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .card-surface:hover {
+            border-color: var(--border-hover);
+        }
+
+        /* Tables */
+        .table-soc {
+            width: 100%;
+            margin-bottom: 0;
+            color: var(--text-body);
+        }
+
+        .table-soc th {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            background-color: #F8FAFC;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .table-soc td {
+            font-size: 0.86rem;
+            padding: 12px 14px;
+            vertical-align: middle;
+            border-bottom: 1px solid #F1F5F9;
+        }
+
+        .table-soc tbody tr:hover {
+            background-color: #F8FAFC;
+        }
+
+        /* Status Tags */
+        .tag-severity {
+            font-size: 0.74rem;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .tag-informational { background-color: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; }
+        .tag-low { background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+        .tag-medium { background-color: #FFFBEB; color: #B45309; border: 1px solid #FDE68A; }
+        .tag-high { background-color: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+        .tag-critical { background-color: #FAF5FF; color: #6B21A8; border: 1px solid #E9D5FF; }
+
+        .btn-action-primary {
+            background-color: #0F172A;
+            border-color: #0F172A;
+            color: #FFFFFF;
+            font-weight: 500;
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            transition: background-color 0.12s ease;
+        }
+
+        .btn-action-primary:hover {
+            background-color: #1E293B;
+            border-color: #1E293B;
+            color: #FFFFFF;
+        }
+
+        .btn-action-secondary {
+            background-color: #FFFFFF;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-body);
+            font-weight: 500;
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            transition: all 0.12s ease;
+        }
+
+        .btn-action-secondary:hover {
+            background-color: #F8FAFC;
+            border-color: var(--border-hover);
+            color: var(--text-heading);
+        }
+
+        /* Comprehensive SOC Component Aliases & Extensions */
+        .soc-card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 20px 22px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .soc-card:hover {
+            border-color: var(--border-hover);
+        }
+
+        .table-custom {
+            width: 100%;
+            margin-bottom: 0;
+            color: var(--text-body);
+        }
+
+        .table-custom th {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            background-color: #F8FAFC;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .table-custom td {
+            font-size: 0.86rem;
+            padding: 11px 14px;
+            vertical-align: middle;
+            border-bottom: 1px solid #F1F5F9;
+        }
+
+        .table-custom tbody tr:hover {
+            background-color: #F8FAFC;
+        }
+
+        .badge-informational { background-color: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; font-weight: 600; font-size: 0.74rem; padding: 3px 8px; border-radius: 4px; }
+        .badge-low { background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-weight: 600; font-size: 0.74rem; padding: 3px 8px; border-radius: 4px; }
+        .badge-medium { background-color: #FFFBEB; color: #B45309; border: 1px solid #FDE68A; font-weight: 600; font-size: 0.74rem; padding: 3px 8px; border-radius: 4px; }
+        .badge-high { background-color: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; font-weight: 600; font-size: 0.74rem; padding: 3px 8px; border-radius: 4px; }
+        .badge-critical { background-color: #FAF5FF; color: #6B21A8; border: 1px solid #E9D5FF; font-weight: 600; font-size: 0.74rem; padding: 3px 8px; border-radius: 4px; }
+
+        .simulation-banner {
+            background-color: #F1F5F9;
+            color: #334155;
+            border: 1px solid #CBD5E1;
+            font-size: 0.78rem;
+            font-weight: 500;
+            padding: 5px 12px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-xs {
+            padding: 2px 8px;
+            font-size: 0.75rem;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .analyst-session-strip {
+            background: linear-gradient(90deg, #F8FAFC 0%, #FFFFFF 100%);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.84rem;
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <!-- Brand Header -->
+        <div class="sidebar-brand">
+            <a href="/" class="text-decoration-none brand-logo">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <div>
+                    <div>CyberSOC</div>
+                    <div style="font-size: 0.68rem; font-weight: 500; color: var(--text-muted);">Threat Ops & SOAR</div>
+                </div>
+            </a>
+            <span class="badge bg-light text-secondary border small px-2 py-1">v1.0</span>
+        </div>
+
+        <!-- Navigation Menu -->
+        <div class="sidebar-menu">
+            <div class="nav-section-title">Telemetry & Operations</div>
+            <a href="/" class="sidebar-link {% if active_page == 'dashboard' %}active{% endif %}">
+                <i class="fa-solid fa-gauge-high"></i>
+                <span>SOC Overview</span>
+            </a>
+            <a href="/detection" class="sidebar-link {% if active_page == 'detection' %}active{% endif %}">
+                <i class="fa-solid fa-network-wired"></i>
+                <span>Traffic Ingestion</span>
+            </a>
+
+            <div class="nav-section-title">Incident Response (SOAR)</div>
+            <a href="/incidents" class="sidebar-link {% if active_page == 'incidents' %}active{% endif %}">
+                <i class="fa-solid fa-list-check"></i>
+                <span>Incidents & Triage</span>
+            </a>
+            <a href="/response-center" class="sidebar-link {% if active_page == 'response_center' %}active{% endif %}">
+                <i class="fa-solid fa-bolt-lightning"></i>
+                <span>Response Playbooks</span>
+            </a>
+
+            <div class="nav-section-title">AI & Intelligence</div>
+            <a href="/model-metrics" class="sidebar-link {% if active_page == 'model_metrics' %}active{% endif %}">
+                <i class="fa-solid fa-brain"></i>
+                <span>Model Benchmarks</span>
+            </a>
+
+            <div class="nav-section-title">System & Audit</div>
+            <a href="/settings" class="sidebar-link {% if active_page == 'settings' %}active{% endif %}">
+                <i class="fa-solid fa-sliders"></i>
+                <span>Diagnostics & Data</span>
+            </a>
+        </div>
+
+        <!-- Sidebar Footer / Analyst Identity -->
+        <div class="sidebar-footer">
+            {% if current_user %}
+            <div class="d-flex align-items-center justify-content-between mb-2 p-2 rounded bg-light border">
+                <div class="d-flex align-items-center gap-2 overflow-hidden">
+                    <div class="rounded-circle bg-dark text-white d-flex align-items-center justify-content-center fw-bold" style="width: 28px; height: 28px; min-width: 28px; font-size: 0.75rem;">
+                        {{ current_user.full_name[0] }}
+                    </div>
+                    <div class="text-truncate">
+                        <div class="small fw-semibold text-truncate text-dark" style="font-size: 0.78rem;">{{ current_user.full_name }}</div>
+                        <div class="text-muted small text-truncate" style="font-size: 0.68rem;">{{ current_user.role }}</div>
+                    </div>
+                </div>
+                <a href="/logout" class="text-secondary text-decoration-none small p-1" title="Sign Out">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </a>
+            </div>
+            {% else %}
+            <div class="mb-2">
+                <a href="/login" class="btn btn-action-secondary w-100 py-1.5 d-flex align-items-center justify-content-center gap-1.5" style="font-size: 0.8rem;">
+                    <i class="fa-solid fa-user-lock"></i>
+                    <span>Analyst Sign In</span>
+                </a>
+            </div>
+            {% endif %}
+
+            <div class="d-flex align-items-center justify-content-between text-muted" style="font-size: 0.7rem;">
+                <div class="d-flex align-items-center gap-1.5">
+                    <span class="d-inline-block rounded-circle bg-success" style="width: 6px; height: 6px;"></span>
+                    <span>Safe Simulation Active</span>
+                </div>
+                <span class="text-muted">Host Protected</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="app-main">
+        <!-- Top App Bar -->
+        <header class="app-topbar">
+            <div>
+                <div class="breadcrumb-nav">
+                    <i class="fa-solid fa-house" style="font-size: 0.75rem;"></i>
+                    <span>/</span>
+                    <span>CyberSOC</span>
+                    <span>/</span>
+                    <span class="text-dark fw-medium">{% block breadcrumb %}Overview{% endblock %}</span>
+                </div>
+                <h1 class="topbar-title">{% block page_title %}Security Operations Center{% endblock %}</h1>
+            </div>
+
+            <!-- Topbar Quick Actions -->
+            <div class="d-flex align-items-center gap-2.5">
+                <div class="pill-badge pill-simulation">
+                    <i class="fa-solid fa-shield-halved text-success"></i>
+                    <span>Mode: <strong>Simulation Only</strong></span>
+                </div>
+
+                <a href="/api/export/incidents" class="btn btn-action-secondary py-1.5 px-3">
+                    <i class="fa-solid fa-file-arrow-down me-1 text-secondary"></i> Export Report
+                </a>
+
+                {% if not current_user %}
+                <a href="/login" class="btn btn-action-primary py-1.5 px-3">
+                    <i class="fa-solid fa-right-to-bracket me-1"></i> Sign In
+                </a>
+                {% endif %}
+            </div>
+        </header>
+
+        <!-- Dynamic Page Content -->
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

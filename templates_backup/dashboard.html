@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}SOC Overview - Deep Learning Threat Detection{% endblock %}
+{% block page_title %}Security Operations Center (SOC) Overview{% endblock %}
+
+{% block content %}
+<!-- UI REDESIGN: Clean white-themed stat cards -->
+<div class="row g-3 mb-4">
+    <!-- Stat 1: Total Analyzed -->
+    <div class="col-md-3">
+        <div class="soc-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-secondary small text-uppercase fw-semibold" style="letter-spacing: 0.05em; font-size: 0.75rem;">Flows Analyzed</span>
+                <div class="rounded p-1 bg-light text-primary">
+                    <i class="fa-solid fa-chart-simple"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold mb-0 text-dark code-font" id="stat-total">0</h3>
+            <div class="text-secondary small mt-1">Processed network flows</div>
+        </div>
+    </div>
+    <!-- Stat 2: Malicious Threats -->
+    <div class="col-md-3">
+        <div class="soc-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-secondary small text-uppercase fw-semibold" style="letter-spacing: 0.05em; font-size: 0.75rem;">Threats Detected</span>
+                <div class="rounded p-1 bg-danger-subtle text-danger">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold mb-0 text-danger code-font" id="stat-threats">0</h3>
+            <div class="text-secondary small mt-1" id="stat-benign-sub">0 Benign flows</div>
+        </div>
+    </div>
+    <!-- Stat 3: Pending Approvals -->
+    <div class="col-md-3">
+        <div class="soc-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-secondary small text-uppercase fw-semibold" style="letter-spacing: 0.05em; font-size: 0.75rem;">Pending Approvals</span>
+                <div class="rounded p-1 bg-warning-subtle text-warning-emphasis">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold mb-0 text-warning-emphasis code-font" id="stat-pending">0</h3>
+            <div class="text-secondary small mt-1">Awaiting human review</div>
+        </div>
+    </div>
+    <!-- Stat 4: Simulated Actions -->
+    <div class="col-md-3">
+        <div class="soc-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-secondary small text-uppercase fw-semibold" style="letter-spacing: 0.05em; font-size: 0.75rem;">Simulated Actions</span>
+                <div class="rounded p-1 bg-success-subtle text-success">
+                    <i class="fa-solid fa-shield-virus"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold mb-0 text-success code-font" id="stat-simulated">0</h3>
+            <div class="text-secondary small mt-1">Zero host modifications</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="soc-card h-100">
+            <h6 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-chart-pie text-primary me-2"></i>Attack Category Distribution</h6>
+            <div style="height: 260px; position: relative;">
+                <canvas id="threatChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="soc-card h-100">
+            <h6 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-chart-column text-secondary me-2"></i>Threat Severity Classification</h6>
+            <div style="height: 260px; position: relative;">
+                <canvas id="severityChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Detection & Incidents Feed -->
+<div class="soc-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-clock-rotate-left text-secondary me-2"></i>Recent Security Incident Feed</h6>
+            <span class="text-secondary small">Real-time threat evaluation and SOAR simulation queue.</span>
+        </div>
+        <a href="/incidents" class="btn btn-sm btn-outline-secondary">View All Incidents &rarr;</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-custom table-hover">
+            <thead>
+                <tr>
+                    <th>Incident ID</th>
+                    <th>Timestamp</th>
+                    <th>Threat Category</th>
+                    <th>Severity</th>
+                    <th>Confidence</th>
+                    <th>Recommended Action</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="recent-incidents-body">
+                <tr>
+                    <td colspan="8" class="text-center text-secondary py-4">
+                        <i class="fa-solid fa-spinner fa-spin me-2"></i> Loading recent detections...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// UI REDESIGN: Clean, modern Chart.js visual configuration
+let threatChartInstance = null;
+let severityChartInstance = null;
+
+async function loadDashboardMetrics() {
+    try {
+        const resp = await fetch("/api/dashboard/summary");
+        const data = await resp.json();
+
+        document.getElementById("stat-total").innerText = data.total_analyzed.toLocaleString();
+        document.getElementById("stat-threats").innerText = data.malicious_count.toLocaleString();
+        document.getElementById("stat-benign-sub").innerText = `${data.benign_count.toLocaleString()} Benign flows`;
+        document.getElementById("stat-pending").innerText = data.pending_approvals.toLocaleString();
+        document.getElementById("stat-simulated").innerText = data.simulated_actions_count.toLocaleString();
+
+        renderCharts(data.threat_distribution, data.severity_distribution);
+    } catch (err) {
+        console.error("Failed to load dashboard metrics:", err);
+    }
+}
+
+function renderCharts(threatDist, severityDist) {
+    // 1. Threat Chart (Doughnut) with clean white segment borders
+    const threatLabels = Object.keys(threatDist).length ? Object.keys(threatDist) : ["Benign", "DoS", "Probe", "R2L", "U2R"];
+    const threatValues = Object.keys(threatDist).length ? Object.values(threatDist) : [1, 0, 0, 0, 0];
+
+    const ctxThreat = document.getElementById("threatChart").getContext("2d");
+    if (threatChartInstance) threatChartInstance.destroy();
+    threatChartInstance = new Chart(ctxThreat, {
+        type: "doughnut",
+        data: {
+            labels: threatLabels,
+            datasets: [{
+                data: threatValues,
+                backgroundColor: ["#10B981", "#EF4444", "#2563EB", "#F59E0B", "#8B5CF6"],
+                borderColor: "#FFFFFF",
+                borderWidth: 2,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: "right",
+                    labels: { color: "#475569", font: { family: "Inter", size: 12 }, padding: 12 }
+                }
+            }
+        }
+    });
+
+    // 2. Severity Chart (Bar) with subtle gridlines
+    const sevLabels = ["Informational", "Low", "Medium", "High", "Critical"];
+    const sevValues = sevLabels.map(lvl => severityDist[lvl] || 0);
+
+    const ctxSev = document.getElementById("severityChart").getContext("2d");
+    if (severityChartInstance) severityChartInstance.destroy();
+    severityChartInstance = new Chart(ctxSev, {
+        type: "bar",
+        data: {
+            labels: sevLabels,
+            datasets: [{
+                label: "Incident Count",
+                data: sevValues,
+                backgroundColor: ["#94A3B8", "#3B82F6", "#F59E0B", "#EF4444", "#7E22CE"],
+                borderRadius: 6,
+                maxBarThickness: 38
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    ticks: { color: "#64748B", font: { family: "Inter", size: 11 } },
+                    grid: { display: false }
+                },
+                y: {
+                    ticks: { color: "#64748B", precision: 0, font: { family: "Inter", size: 11 } },
+                    grid: { color: "#F1F5F9" }
+                }
+            }
+        }
+    });
+}
+
+async function loadRecentIncidents() {
+    try {
+        const resp = await fetch("/api/incidents?limit=8");
+        const incidents = await resp.json();
+        const tbody = document.getElementById("recent-incidents-body");
+
+        if (!incidents.length) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-secondary py-4">No security incidents recorded yet. Analyze a dataset in the <a href="/detection" class="text-primary text-decoration-none">Traffic Analysis</a> tab.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = incidents.map(inc => {
+            const sevClass = `badge-${inc.severity.toLowerCase()}`;
+            const confPct = (inc.confidence * 100).toFixed(1);
+            const statusBadge = inc.action_status === "PENDING_APPROVAL" ?
+                '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-hourglass me-1"></i>Pending</span>' :
+                '<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fa-solid fa-check me-1"></i>Simulated</span>';
+
+            return `
+                <tr>
+                    <td class="code-font fw-semibold text-primary">${inc.incident_id}</td>
+                    <td class="text-secondary small">${new Date(inc.created_at).toLocaleTimeString()}</td>
+                    <td><strong class="text-dark">${inc.threat_category}</strong></td>
+                    <td><span class="badge ${sevClass}">${inc.severity}</span></td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="code-font small text-dark">${confPct}%</span>
+                            <div class="progress flex-grow-1" style="height: 5px; width: 45px; background-color: #E2E8F0;">
+                                <div class="progress-bar bg-primary" style="width: ${confPct}%"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="code-font small text-secondary">${inc.recommended_action}</td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <a href="/incidents#${inc.incident_id}" class="btn btn-xs btn-outline-secondary py-0 px-2 small">Review</a>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+    } catch (err) {
+        console.error("Failed to load incidents feed:", err);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    loadDashboardMetrics();
+    loadRecentIncidents();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Response Center - Automated Incident Response Playbooks{% endblock %}
+{% block page_title %}Security Orchestration, Automation, and Response (SOAR){% endblock %}
+
+{% block content %}
+<!-- UI REDESIGN: White-themed SOAR Playbooks & History -->
+<div class="row g-4 mb-4">
+    <!-- Policy and Safeguard Header -->
+    <div class="col-12">
+        <div class="soc-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="fw-bold mb-1 text-dark"><i class="fa-solid fa-shield-virus text-primary me-2"></i>SOAR Defensive Containment Architecture</h6>
+                    <p class="text-secondary small mb-0">
+                        Translates deep learning threat classifications into explainable, policy-governed containment actions.
+                    </p>
+                </div>
+                <div class="simulation-banner">
+                    <i class="fa-solid fa-lock text-success"></i>
+                    <span>Simulation Safeguard: <strong>HOST DEFENSES PROTECTED</strong></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Active Response Policies Table -->
+<div class="soc-card mb-4">
+    <h6 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-book-bookmark text-secondary me-2"></i>Active Incident Response Playbooks</h6>
+    <div class="table-responsive">
+        <table class="table table-custom table-hover">
+            <thead>
+                <tr>
+                    <th>Threat Category</th>
+                    <th>Default Severity</th>
+                    <th>Action Code</th>
+                    <th>Playbook Policy Description</th>
+                    <th>Approval Requirement</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Benign</strong></td>
+                    <td><span class="badge badge-informational">Informational</span></td>
+                    <td><code class="code-font text-dark p-1 rounded bg-light border">LOG_TELEMETRY</code></td>
+                    <td class="text-secondary small">Record flow characteristics for continuous network baseline estimation.</td>
+                    <td><span class="badge bg-light text-secondary border">Auto-Logged</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Probe</strong></td>
+                    <td><span class="badge badge-low">Low / Medium</span></td>
+                    <td><code class="code-font text-primary p-1 rounded bg-light border">RATE_LIMIT_AND_LOG</code></td>
+                    <td class="text-secondary small">Apply token-bucket rate limiting to scanning source IP and trigger alert.</td>
+                    <td><span class="badge bg-light text-secondary border">Auto-Simulated</span></td>
+                </tr>
+                <tr>
+                    <td><strong>DoS</strong></td>
+                    <td><span class="badge badge-high">High / Critical</span></td>
+                    <td><code class="code-font text-danger p-1 rounded bg-light border">SIMULATED_IP_BLOCK</code></td>
+                    <td class="text-secondary small">Drop volumetric traffic at border gateway. Staged in simulation buffer.</td>
+                    <td><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-user-check me-1"></i>Analyst Approval</span></td>
+                </tr>
+                <tr>
+                    <td><strong>R2L</strong></td>
+                    <td><span class="badge badge-high">High / Critical</span></td>
+                    <td><code class="code-font text-danger p-1 rounded bg-light border">SIMULATED_SESSION_TERMINATE</code></td>
+                    <td class="text-secondary small">Terminate active TCP socket, invalidate tokens, and flag compromised user account.</td>
+                    <td><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-user-check me-1"></i>Analyst Approval</span></td>
+                </tr>
+                <tr>
+                    <td><strong>U2R</strong></td>
+                    <td><span class="badge badge-critical">Critical</span></td>
+                    <td><code class="code-font text-primary-emphasis p-1 rounded bg-light border">SIMULATED_HOST_ISOLATION</code></td>
+                    <td class="text-secondary small">Quarantine compromised host to internal remediation VLAN; notify incident commander.</td>
+                    <td><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-user-check me-1"></i>Analyst Approval</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Simulated Actions History -->
+<div class="soc-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-terminal text-secondary me-2"></i>Simulated Containment Audit Trail</h6>
+            <span class="text-secondary small">Historical log of all containment actions staged or executed in safe simulation mode.</span>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="loadActionsHistory()">
+            <i class="fa-solid fa-rotate-right me-1"></i> Refresh
+        </button>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-custom table-hover">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Incident Ref</th>
+                    <th>Threat</th>
+                    <th>Action Dispatched</th>
+                    <th>Target Entity</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody id="actions-table-body">
+                <tr>
+                    <td colspan="7" class="text-center text-secondary py-3">Loading simulated actions...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadActionsHistory() {
+    try {
+        const resp = await fetch("/api/responses/history?limit=50");
+        const actions = await resp.json();
+        const tbody = document.getElementById("actions-table-body");
+
+        if (!actions.length) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-secondary py-4">No simulated containment actions recorded yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = actions.map(act => {
+            let detailsObj = {};
+            try { detailsObj = JSON.parse(act.details); } catch (e) {}
+
+            return `
+                <tr>
+                    <td class="text-secondary small">${new Date(act.simulated_at).toLocaleTimeString()}</td>
+                    <td class="code-font fw-semibold text-primary">${act.incident_id}</td>
+                    <td><strong>${act.threat_category}</strong></td>
+                    <td class="code-font small text-dark">${act.action_type}</td>
+                    <td class="code-font text-secondary">${act.target_entity}</td>
+                    <td><span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fa-solid fa-check-double me-1"></i>${act.execution_status}</span></td>
+                    <td class="text-secondary small" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${detailsObj.notes || detailsObj.rule || 'Auto-policy simulation'}
+                    </td>
+                </tr>
+            `;
+        }).join("");
+    } catch (err) {
+        console.error("Failed to load actions history:", err);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", loadActionsHistory);
+</script>
+{% endblock %}

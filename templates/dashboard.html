@@ -1,0 +1,605 @@
+{% extends "base.html" %}
+
+{% block title %}SOC Overview - Deep Learning Threat Detection{% endblock %}
+{% block page_title %}Security Operations Center (SOC) Overview{% endblock %}
+{% block breadcrumb %}Overview{% endblock %}
+
+{% block content %}
+<!-- Security Analyst Session Banner & Quick Actions -->
+{% if current_user %}
+<div class="analyst-session-strip mb-4">
+    <div class="d-flex align-items-center gap-3">
+        <div class="rounded-circle bg-dark text-white d-flex align-items-center justify-content-center fw-bold" style="width: 36px; height: 36px;">
+            {{ current_user.full_name[0] }}
+        </div>
+        <div>
+            <div class="fw-bold text-dark d-flex align-items-center gap-2">
+                <span>{{ current_user.full_name }}</span>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.7rem;">{{ current_user.role }}</span>
+                <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.7rem;">
+                    <i class="fa-solid fa-circle text-success me-1" style="font-size: 0.45rem;"></i>Shift Active
+                </span>
+            </div>
+            <div class="text-secondary small" style="font-size: 0.78rem;">
+                Station: <strong>SOC-Node-US-01</strong> &bull; Clearance: <strong>Tier 2 Analyst</strong> &bull; Model: <strong>Hybrid CNN-LSTM + Attention</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Simulation & Action Toolbar -->
+    <div class="d-flex align-items-center gap-2">
+        <div class="dropdown">
+            <button class="btn btn-action-primary dropdown-toggle py-1.5 px-3" type="button" id="quickSimulateDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fa-solid fa-bolt-lightning text-warning me-1"></i> Quick Simulate Threat
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm border" aria-labelledby="quickSimulateDropdown">
+                <li><h6 class="dropdown-header small text-uppercase fw-bold">Live Flow Presets</h6></li>
+                <li><button class="dropdown-item small py-2" type="button" onclick="triggerQuickSimulation('dos')"><i class="fa-solid fa-burst text-danger me-2"></i>SYN Flood (DoS Attack)</button></li>
+                <li><button class="dropdown-item small py-2" type="button" onclick="triggerQuickSimulation('probe')"><i class="fa-solid fa-satellite-dish text-primary me-2"></i>Nmap Port Sweep (Probe)</button></li>
+                <li><button class="dropdown-item small py-2" type="button" onclick="triggerQuickSimulation('r2l')"><i class="fa-solid fa-key text-warning-emphasis me-2"></i>SSH Brute Force (R2L)</button></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><button class="dropdown-item small py-2" type="button" onclick="triggerQuickSimulation('benign')"><i class="fa-solid fa-shield-heart text-success me-2"></i>Normal Web Session (Benign)</button></li>
+            </ul>
+        </div>
+        <a href="/detection" class="btn btn-action-secondary py-1.5 px-3">
+            <i class="fa-solid fa-file-arrow-up text-secondary me-1"></i> Ingest Telemetry
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Live Simulation Notification Toast / Banner -->
+<div id="sim-alert-box" class="alert alert-success alert-dismissible fade show mb-4 d-none" role="alert">
+    <div class="d-flex align-items-center justify-content-between">
+        <div>
+            <i class="fa-solid fa-circle-check text-success me-2"></i>
+            <span id="sim-alert-msg" class="small fw-medium">Simulation completed successfully.</span>
+        </div>
+        <button type="button" class="btn-close py-2" onclick="dismissSimAlert()" aria-label="Close"></button>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <!-- Stat 1: Total Analyzed -->
+    <div class="col-md-3">
+        <div class="soc-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-secondary small text-uppercase fw-semibold" style="letter-spacing: 0.05em; font-size: 0.74rem;">Total Flows Analyzed</span>
+                <div class="rounded p-1 bg-light text-primary">
+                    <i class="fa-solid fa-chart-simple"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold mb-0 text-dark code-font" id="stat-total">0</h3>
+            <div class="text-secondary small mt-1 d-flex align-items-center gap-1">
+                <i class="fa-solid fa-network-wired text-muted" style="font-size: 0.72rem;"></i>
+                <span>Active network telemetry</span>
+            </div>
+        </div>
+    </div>
+    <!-- Stat 2: Threats Detected -->
+    <div class="col-md-3">
+        <div class="soc-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-secondary small text-uppercase fw-semibold" style="letter-spacing: 0.05em; font-size: 0.74rem;">Threats Identified</span>
+                <div class="rounded p-1 bg-danger-subtle text-danger">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold mb-0 text-danger code-font" id="stat-threats">0</h3>
+            <div class="text-secondary small mt-1 d-flex align-items-center gap-1" id="stat-benign-sub">
+                <span>0 Benign flows</span>
+            </div>
+        </div>
+    </div>
+    <!-- Stat 3: Pending Approvals -->
+    <div class="col-md-3">
+        <div class="soc-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-secondary small text-uppercase fw-semibold" style="letter-spacing: 0.05em; font-size: 0.74rem;">Pending Human Triage</span>
+                <div class="rounded p-1 bg-warning-subtle text-warning-emphasis">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold mb-0 text-warning-emphasis code-font" id="stat-pending">0</h3>
+            <div class="text-secondary small mt-1">Awaiting analyst verification</div>
+        </div>
+    </div>
+    <!-- Stat 4: Simulated Actions -->
+    <div class="col-md-3">
+        <div class="soc-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-secondary small text-uppercase fw-semibold" style="letter-spacing: 0.05em; font-size: 0.74rem;">Simulated Responses</span>
+                <div class="rounded p-1 bg-success-subtle text-success">
+                    <i class="fa-solid fa-shield-virus"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold mb-0 text-success code-font" id="stat-simulated">0</h3>
+            <div class="text-secondary small mt-1">Host protected &bull; Zero downtime</div>
+        </div>
+    </div>
+</div>
+
+<!-- SOC Visual Analytics Charts -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="soc-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-chart-pie text-primary me-2"></i>Attack Category Distribution
+                </h6>
+                <span class="badge bg-light text-secondary border small">Harmonized 5-Class</span>
+            </div>
+            <div style="height: 260px; position: relative;">
+                <canvas id="threatChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="soc-card h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold mb-0 text-dark">
+                    <i class="fa-solid fa-chart-column text-secondary me-2"></i>Threat Severity Profile
+                </h6>
+                <span class="badge bg-light text-secondary border small">Automated Scoring</span>
+            </div>
+            <div style="height: 260px; position: relative;">
+                <canvas id="severityChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Interactive Real-Time Incident Feed -->
+<div class="soc-card">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <div>
+            <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-clock-rotate-left text-secondary me-2"></i>Live Incident Feed & Triage Queue</h6>
+            <span class="text-secondary small">Real-time threat evaluation, DL confidence score, and SOAR containment queue.</span>
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <!-- Search Filter Input -->
+            <div class="input-group input-group-sm" style="width: 240px;">
+                <span class="input-group-text bg-light border-end-0 text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                <input type="text" id="incidentSearchInput" class="form-control border-start-0" placeholder="Filter by IP, threat, ID..." oninput="filterIncidentsTable()">
+            </div>
+
+            <!-- Severity Quick Filters -->
+            <select id="severityFilterSelect" class="form-select form-select-sm w-auto" onchange="filterIncidentsTable()">
+                <option value="">All Severities</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+                <option value="Informational">Informational</option>
+            </select>
+
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshDashboard()" title="Refresh Incidents">
+                <i class="fa-solid fa-rotate-right" id="refresh-icon"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-responsive">
+        <table class="table table-custom table-hover">
+            <thead>
+                <tr>
+                    <th>Incident ID</th>
+                    <th>Timestamp</th>
+                    <th>Source IP</th>
+                    <th>Threat Category</th>
+                    <th>Severity</th>
+                    <th>DL Confidence</th>
+                    <th>Recommended Response</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="recent-incidents-body">
+                <tr>
+                    <td colspan="9" class="text-center text-secondary py-4">
+                        <i class="fa-solid fa-spinner fa-spin me-2"></i> Loading recent detections...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Interactive Incident Triage Modal -->
+<div class="modal fade" id="dashboardTriageModal" tabindex="-1" aria-labelledby="triageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="border: 1px solid var(--border-subtle); border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);">
+            <div class="modal-header bg-light border-bottom py-3 px-4">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-dark text-white d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; font-size: 0.8rem;">
+                        <i class="fa-solid fa-user-shield"></i>
+                    </div>
+                    <h6 class="modal-title fw-bold text-dark mb-0" id="triageModalLabel">Incident Triage & Containment Review</h6>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" id="triageModalBody">
+                <div class="text-center py-4 text-secondary">
+                    <i class="fa-solid fa-spinner fa-spin me-2"></i> Fetching telemetry flow parameters...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let threatChartInstance = null;
+let severityChartInstance = null;
+let allLoadedIncidents = [];
+let triageModal = null;
+
+async function loadDashboardMetrics() {
+    try {
+        const resp = await fetch("/api/dashboard/summary");
+        const data = await resp.json();
+
+        document.getElementById("stat-total").innerText = data.total_analyzed.toLocaleString();
+        document.getElementById("stat-threats").innerText = data.malicious_count.toLocaleString();
+        document.getElementById("stat-benign-sub").innerText = `${data.benign_count.toLocaleString()} Benign flows`;
+        document.getElementById("stat-pending").innerText = data.pending_approvals.toLocaleString();
+        document.getElementById("stat-simulated").innerText = data.simulated_actions_count.toLocaleString();
+
+        renderCharts(data.threat_distribution, data.severity_distribution);
+    } catch (err) {
+        console.error("Failed to load dashboard metrics:", err);
+    }
+}
+
+function renderCharts(threatDist, severityDist) {
+    const threatLabels = Object.keys(threatDist).length ? Object.keys(threatDist) : ["Benign", "DoS", "Probe", "R2L", "U2R"];
+    const threatValues = Object.keys(threatDist).length ? Object.values(threatDist) : [1, 0, 0, 0, 0];
+
+    const ctxThreat = document.getElementById("threatChart").getContext("2d");
+    if (threatChartInstance) threatChartInstance.destroy();
+    threatChartInstance = new Chart(ctxThreat, {
+        type: "doughnut",
+        data: {
+            labels: threatLabels,
+            datasets: [{
+                data: threatValues,
+                backgroundColor: ["#10B981", "#EF4444", "#2563EB", "#F59E0B", "#8B5CF6"],
+                borderColor: "#FFFFFF",
+                borderWidth: 2,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: "right",
+                    labels: { color: "#475569", font: { family: "Inter", size: 12 }, padding: 12 }
+                }
+            }
+        }
+    });
+
+    const sevLabels = ["Informational", "Low", "Medium", "High", "Critical"];
+    const sevValues = sevLabels.map(lvl => severityDist[lvl] || 0);
+
+    const ctxSev = document.getElementById("severityChart").getContext("2d");
+    if (severityChartInstance) severityChartInstance.destroy();
+    severityChartInstance = new Chart(ctxSev, {
+        type: "bar",
+        data: {
+            labels: sevLabels,
+            datasets: [{
+                label: "Incident Count",
+                data: sevValues,
+                backgroundColor: ["#94A3B8", "#3B82F6", "#F59E0B", "#EF4444", "#7E22CE"],
+                borderRadius: 6,
+                maxBarThickness: 38
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    ticks: { color: "#64748B", font: { family: "Inter", size: 11 } },
+                    grid: { display: false }
+                },
+                y: {
+                    ticks: { color: "#64748B", precision: 0, font: { family: "Inter", size: 11 } },
+                    grid: { color: "#F1F5F9" }
+                }
+            }
+        }
+    });
+}
+
+async function loadRecentIncidents() {
+    try {
+        const resp = await fetch("/api/incidents?limit=25");
+        allLoadedIncidents = await resp.json();
+        renderFilteredIncidents(allLoadedIncidents);
+    } catch (err) {
+        console.error("Failed to load incidents feed:", err);
+    }
+}
+
+function renderFilteredIncidents(incidents) {
+    const tbody = document.getElementById("recent-incidents-body");
+
+    if (!incidents.length) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-secondary py-4">No incidents match the current criteria. Use the Quick Simulate button above or ingest records in <a href="/detection" class="text-primary text-decoration-none">Traffic Analysis</a>.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = incidents.map(inc => {
+        const sevClass = `badge-${inc.severity.toLowerCase()}`;
+        const confPct = (inc.confidence * 100).toFixed(1);
+        let statusBadge = '';
+        if (inc.action_status === "PENDING_APPROVAL") {
+            statusBadge = '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-hourglass-half me-1"></i>Pending</span>';
+        } else if (inc.action_status === "SIMULATED_EXECUTED") {
+            statusBadge = '<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fa-solid fa-check me-1"></i>Simulated</span>';
+        } else {
+            statusBadge = '<span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="fa-solid fa-xmark me-1"></i>Dismissed</span>';
+        }
+
+        return `
+            <tr id="incident-row-${inc.incident_id}">
+                <td class="code-font fw-semibold text-primary">${inc.incident_id}</td>
+                <td class="text-secondary small">${new Date(inc.created_at).toLocaleTimeString()}</td>
+                <td class="code-font text-dark">${inc.source_ip}</td>
+                <td><strong class="${inc.threat_category === 'Benign' ? 'text-success' : 'text-danger'}">${inc.threat_category}</strong></td>
+                <td><span class="badge ${sevClass}">${inc.severity}</span></td>
+                <td>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="code-font small text-dark">${confPct}%</span>
+                        <div class="progress flex-grow-1" style="height: 5px; width: 45px; background-color: #E2E8F0;">
+                            <div class="progress-bar bg-primary" style="width: ${confPct}%"></div>
+                        </div>
+                    </div>
+                </td>
+                <td class="code-font small text-secondary">${inc.recommended_action}</td>
+                <td>${statusBadge}</td>
+                <td>
+                    <button class="btn btn-xs btn-outline-secondary py-1 px-2" onclick="openTriageModal('${inc.incident_id}')">
+                        <i class="fa-solid fa-shield-halved me-1"></i>Review
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join("");
+}
+
+function filterIncidentsTable() {
+    const query = document.getElementById("incidentSearchInput").value.toLowerCase().trim();
+    const severity = document.getElementById("severityFilterSelect").value;
+
+    const filtered = allLoadedIncidents.filter(inc => {
+        const matchesQuery = !query ||
+            inc.incident_id.toLowerCase().includes(query) ||
+            inc.source_ip.toLowerCase().includes(query) ||
+            inc.threat_category.toLowerCase().includes(query) ||
+            inc.recommended_action.toLowerCase().includes(query);
+
+        const matchesSev = !severity || inc.severity === severity;
+        return matchesQuery && matchesSev;
+    });
+
+    renderFilteredIncidents(filtered);
+}
+
+async function triggerQuickSimulation(category) {
+    showSimAlert(`Simulating ${category.toUpperCase()} packet flow through Hybrid CNN-LSTM + Attention...`, "info");
+    try {
+        const resp = await fetch("/api/detection/simulate-preset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ category: category, count: 5 })
+        });
+        const data = await resp.json();
+
+        if (resp.ok && data.status === "success") {
+            showSimAlert(`Successfully processed 5 ${category.toUpperCase()} flows! Deep learning predictions recorded and staged into SOAR queue.`, "success");
+            await loadDashboardMetrics();
+            await loadRecentIncidents();
+        } else {
+            showSimAlert(`Simulation failed: ${data.error || "Unknown error"}`, "danger");
+        }
+    } catch (err) {
+        showSimAlert(`Network error while simulating: ${err}`, "danger");
+    }
+}
+
+function showSimAlert(msg, type = "success") {
+    const box = document.getElementById("sim-alert-box");
+    const msgEl = document.getElementById("sim-alert-msg");
+    box.className = `alert alert-${type} alert-dismissible fade show mb-4`;
+    msgEl.innerText = msg;
+    box.classList.remove("d-none");
+    if (type === "success") {
+        setTimeout(dismissSimAlert, 6000);
+    }
+}
+
+function dismissSimAlert() {
+    const box = document.getElementById("sim-alert-box");
+    if (box) box.classList.add("d-none");
+}
+
+async function openTriageModal(incidentId) {
+    if (!triageModal) {
+        triageModal = new bootstrap.Modal(document.getElementById("dashboardTriageModal"));
+    }
+    triageModal.show();
+
+    const body = document.getElementById("triageModalBody");
+    body.innerHTML = `<div class="text-center py-4 text-secondary"><i class="fa-solid fa-spinner fa-spin me-2"></i> Loading incident details for ${incidentId}...</div>`;
+
+    try {
+        const resp = await fetch(`/api/incidents/${incidentId}`);
+        const inc = await resp.json();
+
+        if (!resp.ok || inc.error) {
+            body.innerHTML = `<div class="alert alert-danger py-2 small">Error loading incident: ${inc.error || "Not found"}</div>`;
+            return;
+        }
+
+        const sevClass = `badge-${inc.severity.toLowerCase()}`;
+        const confPct = (inc.confidence * 100).toFixed(1);
+        const isReviewed = inc.action_status !== "PENDING_APPROVAL";
+
+        let cmdPreview = "# Simulated SOAR Action Command Preview\n";
+        if (inc.recommended_action === "SIMULATED_IP_BLOCK") {
+            cmdPreview += `iptables -A INPUT -s ${inc.source_ip} -j DROP # (Simulated)`;
+        } else if (inc.recommended_action === "RATE_LIMIT_AND_LOG") {
+            cmdPreview += `tc qdisc add dev eth0 root handle 1: cbq avpkt 1000 bandwidth 10Mbit\ntc class add dev eth0 parent 1: classid 1:1 cbq rate 100kbit allot 1500`;
+        } else if (inc.recommended_action === "SIMULATED_HOST_ISOLATION") {
+            cmdPreview += `virsh domif-setlink target_vm ${inc.destination_ip} down # (Simulated Quarantine)`;
+        } else {
+            cmdPreview += `logger -p auth.notice "SOC Telemetry Flagged flow from ${inc.source_ip}"`;
+        }
+
+        body.innerHTML = `
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <div class="p-3 bg-light rounded border">
+                        <div class="text-secondary small fw-semibold text-uppercase mb-2">Telemetry Flow Attributes</div>
+                        <div class="small text-dark mb-1"><strong>Incident Ref:</strong> <span class="code-font text-primary">${inc.incident_id}</span></div>
+                        <div class="small text-dark mb-1"><strong>Source:</strong> <span class="code-font">${inc.source_ip}</span> &rarr; <strong>Destination:</strong> <span class="code-font">${inc.destination_ip}</span></div>
+                        <div class="small text-dark mb-1"><strong>Protocol / Service:</strong> <span class="badge bg-white border text-dark">${inc.protocol || "tcp"} / ${inc.service || "http"}</span></div>
+                        <div class="small text-dark"><strong>Logged At:</strong> ${new Date(inc.created_at).toLocaleString()}</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="p-3 bg-light rounded border">
+                        <div class="text-secondary small fw-semibold text-uppercase mb-2">DL Threat Assessment</div>
+                        <div class="small text-dark mb-1"><strong>Classified Category:</strong> <span class="fw-bold ${inc.threat_category === 'Benign' ? 'text-success' : 'text-danger'}">${inc.threat_category}</span></div>
+                        <div class="small text-dark mb-1"><strong>Assigned Severity:</strong> <span class="badge ${sevClass}">${inc.severity}</span></div>
+                        <div class="small text-dark mb-1"><strong>DL Model Confidence:</strong> <span class="code-font fw-semibold">${confPct}%</span></div>
+                        <div class="small text-dark"><strong>Active Status:</strong> <span class="badge bg-white border text-dark">${inc.action_status}</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label small fw-semibold text-secondary">Recommended Playbook Containment Script (Safe Simulation Mode)</label>
+                <pre class="code-font bg-dark text-light p-3 rounded mb-0" style="font-size: 0.8rem; overflow-x: auto;"><code>${cmdPreview}</code></pre>
+            </div>
+
+            <!-- FreeLLMAPI AI Copilot Section -->
+            <div class="p-3 rounded bg-light border mb-3" id="ai-intel-container">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small fw-bold text-dark"><i class="fa-solid fa-robot text-primary me-1"></i>AI Incident Intelligence (FreeLLMAPI Copilot)</span>
+                    <button type="button" class="btn btn-xs btn-outline-primary" id="btn-fetch-ai-intel" onclick="fetchAiIntelligence('${inc.incident_id}')">
+                        <i class="fa-solid fa-wand-magic-sparkles me-1"></i> Analyze with FreeLLMAPI
+                    </button>
+                </div>
+                <div id="ai-intel-content" class="small text-secondary" style="font-size: 0.82rem; line-height: 1.5;">
+                    Click <strong>Analyze with FreeLLMAPI</strong> to generate an automated LLM attack breakdown, blast radius assessment, and MITRE ATT&CK mapping.
+                </div>
+            </div>
+
+            ${isReviewed ? `
+                <div class="alert alert-secondary py-2 small mb-0">
+                    <i class="fa-solid fa-check-double text-success me-1"></i>
+                    This incident was already reviewed by <strong>${inc.reviewed_by || "Security Analyst"}</strong>: <em>"${inc.analyst_comments || "No comments"}"</em>
+                </div>
+            ` : `
+                <div class="mb-3">
+                    <label for="analystComments" class="form-label small fw-semibold text-secondary">Security Analyst Review Notes</label>
+                    <textarea class="form-control form-control-sm" id="analystComments" rows="2" placeholder="Document investigation rationale, verification with threat intel, or false-positive notes..."></textarea>
+                </div>
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="submitTriageDecision('${inc.incident_id}', 'REJECTED')">
+                        <i class="fa-solid fa-xmark me-1"></i> Dismiss / False Positive
+                    </button>
+                    <button type="button" class="btn btn-sm btn-dark" onclick="submitTriageDecision('${inc.incident_id}', 'APPROVED')">
+                        <i class="fa-solid fa-check me-1"></i> Authorize Containment (Simulated)
+                    </button>
+                </div>
+            `}
+        `;
+    } catch (err) {
+        body.innerHTML = `<div class="alert alert-danger py-2 small">Failed to load incident: ${err}</div>`;
+    }
+}
+
+async function submitTriageDecision(incidentId, decision) {
+    const commentsEl = document.getElementById("analystComments");
+    const comments = commentsEl ? commentsEl.value.trim() : "";
+    const analystName = "{{ current_user.full_name if current_user else 'Security Analyst' }}";
+
+    try {
+        const resp = await fetch(`/api/incidents/${incidentId}/review`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                decision: decision,
+                analyst_name: analystName,
+                comments: comments || (decision === "APPROVED" ? "Verified anomalous signature. Authorized containment in simulation mode." : "Dismissed as benign or expected traffic.")
+            })
+        });
+        const res = await resp.json();
+
+        if (resp.ok && res.status === "success") {
+            if (triageModal) triageModal.hide();
+            showSimAlert(`Incident ${incidentId} was marked as ${decision}. Staged into SOAR simulation record.`, "success");
+            await loadDashboardMetrics();
+            await loadRecentIncidents();
+        } else {
+            alert("Failed to record decision: " + (res.error || "Unknown error"));
+        }
+    } catch (err) {
+        alert("Error submitting review: " + err);
+    }
+}
+
+async function fetchAiIntelligence(incidentId) {
+    const btn = document.getElementById("btn-fetch-ai-intel");
+    const container = document.getElementById("ai-intel-content");
+    if (!btn || !container) return;
+
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-1"></i> Querying FreeLLMAPI...`;
+    container.innerHTML = `<div class="text-secondary py-2"><i class="fa-solid fa-spinner fa-spin me-2"></i> Generating threat intelligence briefing via FreeLLMAPI...</div>`;
+
+    try {
+        const resp = await fetch(`/api/incidents/${incidentId}/ai-explain`);
+        const data = await resp.json();
+
+        const badge = data.fallback ?
+            `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle mb-2">Deterministic Rule Engine Fallback</span>` :
+            `<span class="badge bg-success-subtle text-success border border-success-subtle mb-2"><i class="fa-solid fa-bolt me-1"></i>FreeLLMAPI (${data.model})</span>`;
+
+        container.innerHTML = `
+            ${badge}
+            <div class="bg-white p-3 rounded border text-dark mt-1" style="white-space: pre-wrap; font-size: 0.82rem; max-height: 240px; overflow-y: auto;">${data.analysis}</div>
+        `;
+    } catch (err) {
+        container.innerHTML = `<div class="alert alert-danger py-2 small mb-0">Failed to query FreeLLMAPI: ${err}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-rotate-right me-1"></i> Re-Analyze`;
+    }
+}
+
+async function refreshDashboard() {
+    const icon = document.getElementById("refresh-icon");
+    if (icon) icon.classList.add("fa-spin");
+    await Promise.all([loadDashboardMetrics(), loadRecentIncidents()]);
+    if (icon) icon.classList.remove("fa-spin");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    loadDashboardMetrics();
+    loadRecentIncidents();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cyber-soc-config
+  namespace: cyber-soc
+  labels:
+    app.kubernetes.io/name: cyber-soc-app
+data:
+  HOST: "0.0.0.0"
+  PORT: "5050"
+  FLASK_DEBUG: "False"
+  DEFAULT_RESPONSE_MODE: "SIMULATION_ONLY"
+  MAX_UPLOAD_SIZE_MB: "100"
+  # FreeLLMAPI Gateway Configuration
+  # Point this to your FreeLLMAPI instance (in-cluster service or external URL)
+  FREELLMAPI_BASE_URL: "http://freellmapi-service:8000/v1"
+  FREELLMAPI_MODEL: "gemini-1.5-flash"
+  FREELLMAPI_TIMEOUT_SEC: "10"

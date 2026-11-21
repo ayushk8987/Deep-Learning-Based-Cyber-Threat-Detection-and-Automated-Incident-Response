@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyst Authentication - CyberSOC IDS</title>
+    <!-- UI REDESIGN & AUTH VALIDATION: Minimal, human-centric white theme login portal -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #FFFFFF;
+            --bg-secondary: #F8FAFC;
+            --border-color: #E2E8F0;
+            --text-primary: #1E293B;
+            --text-secondary: #64748B;
+            --accent-brand: #2563EB;
+            --accent-dark: #0F172A;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .login-card {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 36px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+
+        .login-brand {
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+        }
+
+        .rule-indicator {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.15s ease;
+        }
+
+        .rule-indicator.valid {
+            color: #10B981;
+            font-weight: 500;
+        }
+
+        .form-control {
+            border-color: var(--border-color);
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            border-radius: 8px;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent-brand);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn-submit {
+            background-color: var(--accent-dark);
+            border-color: var(--accent-dark);
+            color: #FFFFFF;
+            font-weight: 500;
+            padding: 10px;
+            border-radius: 8px;
+            transition: background-color 0.15s ease;
+        }
+
+        .btn-submit:hover {
+            background-color: #1E293B;
+            border-color: #1E293B;
+            color: #FFFFFF;
+        }
+
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-card">
+    <!-- Brand & Header -->
+    <div class="text-center mb-4">
+        <div class="d-inline-flex align-items-center justify-content-center bg-light border rounded-circle mb-3" style="width: 48px; height: 48px;">
+            <i class="fa-solid fa-shield-halved text-primary fs-5"></i>
+        </div>
+        <div class="login-brand mb-1">CyberSOC Incident Response</div>
+        <div class="text-secondary small">Security Analyst Authentication Portal</div>
+    </div>
+
+    <!-- Alert Container -->
+    <div id="alert-container" style="display: none;"></div>
+
+    <!-- Authentication Form -->
+    <form id="login-form" novalidate>
+        <!-- Email Input -->
+        <div class="mb-3">
+            <label for="email" class="form-label small fw-semibold text-secondary">Analyst Email Address</label>
+            <div class="input-group">
+                <span class="input-group-text bg-light border-end-0 text-secondary">
+                    <i class="fa-regular fa-envelope"></i>
+                </span>
+                <input 
+                    type="email" 
+                    class="form-control border-start-0" 
+                    id="email" 
+                    name="email" 
+                    placeholder="analyst@soc.local" 
+                    autocomplete="username" 
+                    required 
+                    autofocus
+                >
+            </div>
+            <div class="invalid-feedback small" id="email-feedback"></div>
+        </div>
+
+        <!-- Password Input -->
+        <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <label for="password" class="form-label small fw-semibold text-secondary mb-0">Password</label>
+                <button type="button" class="btn btn-link p-0 text-decoration-none small text-secondary" id="toggle-password" style="font-size: 0.78rem;">
+                    <i class="fa-regular fa-eye me-1" id="eye-icon"></i> Show
+                </button>
+            </div>
+            <div class="input-group">
+                <span class="input-group-text bg-light border-end-0 text-secondary">
+                    <i class="fa-solid fa-lock"></i>
+                </span>
+                <input 
+                    type="password" 
+                    class="form-control border-start-0" 
+                    id="password" 
+                    name="password" 
+                    placeholder="Enter secure password" 
+                    autocomplete="current-password" 
+                    required
+                >
+            </div>
+            <div class="invalid-feedback small" id="password-feedback"></div>
+        </div>
+
+        <!-- Dynamic 5-Rule Password Requirements -->
+        <div class="p-3 rounded bg-light border border-light-subtle mb-4" id="password-rules-box">
+            <div class="small fw-semibold text-dark mb-2" style="font-size: 0.78rem;">Password Requirements:</div>
+            <div class="d-flex flex-column gap-1">
+                <div class="rule-indicator" id="rule-min-length">
+                    <i class="fa-regular fa-circle" id="icon-min-length"></i>
+                    <span>At least 8 characters</span>
+                </div>
+                <div class="rule-indicator" id="rule-uppercase">
+                    <i class="fa-regular fa-circle" id="icon-uppercase"></i>
+                    <span>One uppercase letter (A-Z)</span>
+                </div>
+                <div class="rule-indicator" id="rule-lowercase">
+                    <i class="fa-regular fa-circle" id="icon-lowercase"></i>
+                    <span>One lowercase letter (a-z)</span>
+                </div>
+                <div class="rule-indicator" id="rule-number">
+                    <i class="fa-regular fa-circle" id="icon-number"></i>
+                    <span>One number (0-9)</span>
+                </div>
+                <div class="rule-indicator" id="rule-special">
+                    <i class="fa-regular fa-circle" id="icon-special"></i>
+                    <span>One special character (!@#$%^&*...)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" class="btn btn-submit w-100" id="btn-submit">
+            <span id="btn-text"><i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Sign In to Security Operations</span>
+            <span id="btn-spinner" style="display: none;"><i class="fa-solid fa-spinner fa-spin me-1"></i> Authenticating...</span>
+        </button>
+    </form>
+
+    <!-- Quick Demo Helper -->
+    <div class="mt-4 pt-3 border-top text-center">
+        <div class="text-secondary small mb-1" style="font-size: 0.78rem;">Academic Demo Credentials:</div>
+        <button type="button" class="btn btn-xs btn-outline-secondary py-1 px-2 code-font" id="btn-fill-demo">
+            analyst@soc.local &bull; Secure@SOC2026!
+        </button>
+        <div class="mt-3">
+            <a href="/" class="text-secondary small text-decoration-none">
+                <i class="fa-solid fa-arrow-left me-1"></i> Continue as Guest / Demo Mode
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+// AUTH VALIDATION: RFC 5322 Compatible Regular Expression for Email
+const RFC_5322_EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+// AUTH VALIDATION: Password Rule Evaluator
+function evaluatePasswordRules(password) {
+    return {
+        minLength: password.length >= 8,
+        uppercase: /[A-Z]/.test(password),
+        lowercase: /[a-z]/.test(password),
+        number: /[0-9]/.test(password),
+        special: /[^A-Za-z0-9]/.test(password)
+    };
+}
+
+// Elements
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
+const loginForm = document.getElementById("login-form");
+const alertContainer = document.getElementById("alert-container");
+const togglePasswordBtn = document.getElementById("toggle-password");
+const eyeIcon = document.getElementById("eye-icon");
+const btnSubmit = document.getElementById("btn-submit");
+const btnText = document.getElementById("btn-text");
+const btnSpinner = document.getElementById("btn-spinner");
+
+// Dynamic Password Rule Feedback
+passwordInput.addEventListener("input", () => {
+    const pwd = passwordInput.value;
+    const rules = evaluatePasswordRules(pwd);
+
+    function updateRule(elementId, iconId, isValid) {
+        const el = document.getElementById(elementId);
+        const icon = document.getElementById(iconId);
+        if (isValid) {
+            el.classList.add("valid");
+            icon.className = "fa-solid fa-circle-check text-success";
+        } else {
+            el.classList.remove("valid");
+            icon.className = "fa-regular fa-circle";
+        }
+    }
+
+    updateRule("rule-min-length", "icon-min-length", rules.minLength);
+    updateRule("rule-uppercase", "icon-uppercase", rules.uppercase);
+    updateRule("rule-lowercase", "icon-lowercase", rules.lowercase);
+    updateRule("rule-number", "icon-number", rules.number);
+    updateRule("rule-special", "icon-special", rules.special);
+});
+
+// Show / Hide Password
+togglePasswordBtn.addEventListener("click", () => {
+    if (passwordInput.type === "password") {
+        passwordInput.type = "text";
+        eyeIcon.className = "fa-regular fa-eye-slash me-1";
+        togglePasswordBtn.innerHTML = '<i class="fa-regular fa-eye-slash me-1"></i> Hide';
+    } else {
+        passwordInput.type = "password";
+        eyeIcon.className = "fa-regular fa-eye me-1";
+        togglePasswordBtn.innerHTML = '<i class="fa-regular fa-eye me-1"></i> Show';
+    }
+});
+
+// Demo Fill
+document.getElementById("btn-fill-demo").addEventListener("click", () => {
+    emailInput.value = "analyst@soc.local";
+    passwordInput.value = "Secure@SOC2026!";
+    passwordInput.dispatchEvent(new Event("input"));
+});
+
+// Display Error Helper
+function showAlert(message, type = "danger") {
+    alertContainer.style.display = "block";
+    alertContainer.innerHTML = `
+        <div class="alert alert-${type} py-2 px-3 small d-flex align-items-center justify-content-between mb-3" role="alert">
+            <div><i class="fa-solid fa-triangle-exclamation me-1"></i> ${message}</div>
+            <button type="button" class="btn-close btn-close-sm" onclick="this.parentElement.remove()"></button>
+        </div>
+    `;
+}
+
+// Form Submission with Validation
+loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    alertContainer.style.display = "none";
+    emailInput.classList.remove("is-invalid");
+    passwordInput.classList.remove("is-invalid");
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    // 1. Email Validation
+    if (!email) {
+        emailInput.classList.add("is-invalid");
+        document.getElementById("email-feedback").innerText = "Please enter your email address.";
+        showAlert("Please enter your email address.");
+        emailInput.focus();
+        return;
+    }
+
+    if (!RFC_5322_EMAIL_REGEX.test(email)) {
+        emailInput.classList.add("is-invalid");
+        document.getElementById("email-feedback").innerText = "Please enter a valid email address.";
+        showAlert("Please enter a valid email address.");
+        emailInput.focus();
+        return;
+    }
+
+    // 2. Password Validation
+    if (!password) {
+        passwordInput.classList.add("is-invalid");
+        document.getElementById("password-feedback").innerText = "Password must contain at least 8 characters.";
+        showAlert("Password must contain at least 8 characters.");
+        passwordInput.focus();
+        return;
+    }
+
+    const rules = evaluatePasswordRules(password);
+    if (!rules.minLength) {
+        showAlert("Password must contain at least 8 characters.");
+        passwordInput.classList.add("is-invalid");
+        passwordInput.focus();
+        return;
+    }
+    if (!rules.uppercase) {
+        showAlert("Password must include at least one uppercase letter.");
+        passwordInput.classList.add("is-invalid");
+        passwordInput.focus();
+        return;
+    }
+    if (!rules.lowercase) {
+        showAlert("Password must include at least one lowercase letter.");
+        passwordInput.classList.add("is-invalid");
+        passwordInput.focus();
+        return;
+    }
+    if (!rules.number) {
+        showAlert("Password must include at least one number.");
+        passwordInput.classList.add("is-invalid");
+        passwordInput.focus();
+        return;
+    }
+    if (!rules.special) {
+        showAlert("Password must include at least one special character.");
+        passwordInput.classList.add("is-invalid");
+        passwordInput.focus();
+        return;
+    }
+
+    // 3. Authenticate with backend API
+    btnSubmit.disabled = true;
+    btnText.style.display = "none";
+    btnSpinner.style.display = "inline-block";
+
+    try {
+        const resp = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await resp.json();
+
+        if (!resp.ok || !data.success) {
+            showAlert(data.error || "Unable to sign in. Please check your credentials and try again.");
+            return;
+        }
+
+        // Success - redirect to dashboard
+        showAlert("Authentication successful. Redirecting to SOC...", "success");
+        setTimeout(() => {
+            window.location.href = "/";
+        }, 600);
+
+    } catch (err) {
+        showAlert("Unable to connect to authentication service. Please try again.");
+    } finally {
+        btnSubmit.disabled = false;
+        btnText.style.display = "inline-block";
+        btnSpinner.style.display = "none";
+    }
+});
+</script>
+</body>
+</html>

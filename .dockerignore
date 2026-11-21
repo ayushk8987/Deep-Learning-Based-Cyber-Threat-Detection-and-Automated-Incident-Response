@@ -1,0 +1,33 @@
+# Git and CI/CD
+.git/
+.github/
+.gitignore
+
+# Virtual environment and caches
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.keras/
+.matplotlib_cache/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Documentation and presentation files (not needed in container)
+Documents/
+docs/
+templates_backup/
+
+# Sensitive files
+.env
+.env.local
+*.pem
+*.key

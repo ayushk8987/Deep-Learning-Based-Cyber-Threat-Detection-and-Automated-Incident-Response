@@ -1,0 +1,46 @@
+# ==============================================================================
+# DEPLOYMENT PREPARATION: Docker Compose Orchestration (CyberSOC + FreeLLMAPI)
+# ==============================================================================
+version: "3.8"
+
+services:
+  cyber-soc-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cyber_soc_ids_app
+    ports:
+      - "5050:5050"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5050
+      - FLASK_DEBUG=False
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-academic-soc-secret-key-btech-2026}
+      # Connect to FreeLLMAPI gateway (either in-compose service or your external host)
+      - FREELLMAPI_BASE_URL=${FREELLMAPI_BASE_URL:-http://freellmapi:8000/v1}
+      - FREELLMAPI_API_KEY=${FREELLMAPI_API_KEY:-sk-freellmapi-free}
+      - FREELLMAPI_MODEL=${FREELLMAPI_MODEL:-gemini-1.5-flash}
+    volumes:
+      - ./data:/app/data
+      - ./artifacts:/app/artifacts
+      - ./models/saved_model:/app/models/saved_model
+    depends_on:
+      - freellmapi
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # FreeLLMAPI Open-Source Model Gateway (aggregates free AI tiers behind unified /v1)
+  freellmapi:
+    image: ghcr.io/tashfeenahmed/freellmapi:latest
+    container_name: freellmapi_gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+    restart: unless-stopped
