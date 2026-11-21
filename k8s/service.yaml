@@ -6,11 +6,15 @@ metadata:
   labels:
     app.kubernetes.io/name: cyber-soc-app
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app.kubernetes.io/name: cyber-soc-app
   ports:
     - name: http
       port: 80
+      targetPort: 5050
+      protocol: TCP
+    - name: app-direct
+      port: 5050
       targetPort: 5050
       protocol: TCP

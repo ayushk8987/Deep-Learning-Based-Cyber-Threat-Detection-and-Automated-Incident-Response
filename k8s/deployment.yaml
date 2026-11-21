@@ -28,10 +28,12 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+      imagePullSecrets:
+        - name: ecr-secret
       containers:
         - name: cyber-soc-app
-          image: cyber-soc-ids:1.0.0
-          imagePullPolicy: IfNotPresent
+          image: 361879816440.dkr.ecr.ap-southeast-2.amazonaws.com/cyber-soc-ids:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 5050
