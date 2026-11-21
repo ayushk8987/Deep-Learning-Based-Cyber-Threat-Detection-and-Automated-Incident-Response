@@ -33,9 +33,9 @@ jobs:
 
       - name: Syntax & Lint Check
         run: |
-          # Stop build on syntax errors or undefined names
+          # Stop build on critical syntax errors
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv,.venv,Documents
-          # Complexity check
+          # Style check with tolerance
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=venv,.venv,Documents
 
       - name: Run Test Suite
@@ -73,38 +73,30 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $REGISTRY/$ECR_REPOSITORY:latest .
+          docker build --platform linux/amd64 -t $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $REGISTRY/$ECR_REPOSITORY:latest .
           docker push $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $REGISTRY/$ECR_REPOSITORY:latest
 
   deploy:
-    name: Deploy to Kubernetes Cluster
+    name: Deploy to Kubernetes Cluster (K3s)
     needs: build-and-push
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Trigger Rolling Deployment via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Update Kubeconfig
-        run: |
-          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ secrets.EKS_CLUSTER_NAME || 'cyber-soc-cluster' }}
-
-      - name: Deploy Kubernetes Manifests
-        env:
-          REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/secret.yaml
-          kubectl apply -f k8s/configmap.yaml
-          kubectl apply -f k8s/service.yaml
-          kubectl set image deployment/cyber-soc-deployment cyber-soc-app=$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -n cyber-soc || kubectl apply -f k8s/deployment.yaml
-          kubectl rollout status deployment/cyber-soc-deployment -n cyber-soc --timeout=180s
+          host: ${{ secrets.EC2_HOST || '3.27.59.101' }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /opt/cyber-soc/repo
+            git pull origin main
+            sudo /usr/local/bin/refresh-ecr-token.sh
+            sudo kubectl apply -f /opt/cyber-soc/repo/k8s/pvc.yaml
+            sudo kubectl apply -f /opt/cyber-soc/repo/k8s/configmap.yaml
+            sudo kubectl apply -f /opt/cyber-soc/repo/k8s/secret.yaml
+            sudo kubectl apply -f /opt/cyber-soc/repo/k8s/service.yaml
+            sudo kubectl apply -f /opt/cyber-soc/repo/k8s/deployment.yaml
+            sudo kubectl rollout restart deployment/cyber-soc-deployment -n cyber-soc
+            sudo kubectl rollout status deployment/cyber-soc-deployment -n cyber-soc --timeout=180s
